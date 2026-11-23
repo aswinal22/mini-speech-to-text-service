@@ -2,7 +2,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.services.evaluator import calculate_wer, normalize_text
+from app.services.evaluator import (
+    calculate_aer,
+    calculate_cer,
+    calculate_regional_error_metrics,
+    calculate_wer,
+    normalize_text,
+    tokenize_indic_aksharas,
+)
 
 
 def test_health_check(client: TestClient) -> None:
@@ -38,6 +45,9 @@ def test_transcribe_wav_with_reference(client: TestClient, english_wav_path: Pat
     assert len(data["transcript"]) > 0
     assert data["reference_transcript"] == reference_text
     assert data["wer"] == 0.0  # Exact match for JFK sample
+    assert data["cer"] == 0.0
+    assert data["aer"] == 0.0
+    assert data["acoustic_accuracy"] == 1.0
     assert data["duration_seconds"] > 0
     assert data["inference_time_seconds"] > 0
 
@@ -176,3 +186,31 @@ def test_wer_evaluator_unit_cases() -> None:
     assert calculate_wer("anything", None) is None
     assert calculate_wer("", "") == 0.0
     assert calculate_wer("", "reference words") == 1.0
+
+
+def test_regional_error_metrics_calculation() -> None:
+    """Verify Character Error Rate (CER), Akshara Error Rate (AER), and acoustic accuracy."""
+    # Tamil Sandhi split test: "வணக்கம் நண்பர்களே" vs "வணக்கம் நண்பர் களே"
+    ref_ta = "வணக்கம் நண்பர்களே"
+    hyp_ta = "வணக்கம் நண்பர் களே"
+
+    # In WER: 1 sub + 1 ins -> WER is 0.5 or higher
+    wer = calculate_wer(hyp_ta, ref_ta)
+    assert wer >= 0.5
+
+    # In CER: only 1 space difference -> CER is low (< 0.10)
+    cer = calculate_cer(hyp_ta, ref_ta)
+    assert cer is not None
+    assert cer < 0.10
+
+    # In AER: Syllable clusters are segmented accurately
+    aksharas = tokenize_indic_aksharas("வணக்கம்")
+    assert len(aksharas) == 5  # வ, ண, க், க, ம் -> 5 syllabic units
+
+    # Full regional metric dictionary
+    metrics = calculate_regional_error_metrics(hyp_ta, ref_ta, language="ta")
+    assert metrics["wer"] is not None
+    assert metrics["cer"] is not None
+    assert metrics["aer"] is not None
+    assert metrics["acoustic_accuracy"] is not None
+    assert metrics["acoustic_accuracy"] > 0.90

@@ -14,6 +14,9 @@ class TranscriptionSummaryResponse(BaseModel):
     wer: Optional[float] = Field(
         None, description="Word Error Rate compared to reference transcript, if provided"
     )
+    cer: Optional[float] = Field(
+        None, description="Character Error Rate compared to reference transcript, if provided"
+    )
     created_at: str = Field(..., description="Timestamp of transcription creation")
 
 
@@ -34,6 +37,15 @@ class TranscriptionDetailResponse(BaseModel):
     )
     wer: Optional[float] = Field(
         None, description="Calculated Word Error Rate (WER) against reference transcript"
+    )
+    cer: Optional[float] = Field(
+        None, description="Calculated Character Error Rate (CER) for regional language accuracy"
+    )
+    aer: Optional[float] = Field(
+        None, description="Calculated Akshara Error Rate (AER) across Indic syllable clusters"
+    )
+    acoustic_accuracy: Optional[float] = Field(
+        None, description="Calibrated acoustic accuracy percentage (1.0 - CER)"
     )
     duration_seconds: float = Field(..., description="Audio duration in seconds")
     inference_time_seconds: float = Field(

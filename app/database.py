@@ -32,7 +32,7 @@ def get_db_connection(
 
 
 def init_db(custom_path: Optional[Path] = None) -> None:
-    """Initialize SQLite database tables and indexes."""
+    """Initialize SQLite database tables, regional metric columns, and indexes."""
     with get_db_connection(custom_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -45,12 +45,26 @@ def init_db(custom_path: Optional[Path] = None) -> None:
                 transcript TEXT NOT NULL,
                 reference_transcript TEXT,
                 wer REAL,
+                cer REAL,
+                aer REAL,
+                acoustic_accuracy REAL,
                 duration_seconds REAL NOT NULL DEFAULT 0.0,
                 inference_time_seconds REAL NOT NULL DEFAULT 0.0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
+
+        # Migrate existing tables dynamically if columns are absent
+        cursor.execute("PRAGMA table_info(transcriptions)")
+        existing_cols = {row["name"] for row in cursor.fetchall()}
+        for col, col_type in [("cer", "REAL"), ("aer", "REAL"), ("acoustic_accuracy", "REAL")]:
+            if col not in existing_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE transcriptions ADD COLUMN {col} {col_type}")
+                except sqlite3.OperationalError:
+                    pass
+
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_transcriptions_created_at
@@ -68,6 +82,9 @@ def save_transcription(
     wer: Optional[float],
     duration_seconds: float,
     inference_time_seconds: float,
+    cer: Optional[float] = None,
+    aer: Optional[float] = None,
+    acoustic_accuracy: Optional[float] = None,
     custom_path: Optional[Path] = None,
 ) -> int:
     """Insert a new transcription record into the database and return the row ID."""
@@ -82,9 +99,12 @@ def save_transcription(
                 transcript,
                 reference_transcript,
                 wer,
+                cer,
+                aer,
+                acoustic_accuracy,
                 duration_seconds,
                 inference_time_seconds
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 filename,
@@ -93,6 +113,9 @@ def save_transcription(
                 transcript,
                 reference_transcript,
                 float(wer) if wer is not None else None,
+                float(cer) if cer is not None else None,
+                float(aer) if aer is not None else None,
+                float(acoustic_accuracy) if acoustic_accuracy is not None else None,
                 float(duration_seconds),
                 float(inference_time_seconds),
             ),
@@ -113,7 +136,7 @@ def get_all_transcriptions(
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, filename, detected_language, transcript, wer, created_at
+            SELECT id, filename, detected_language, transcript, wer, cer, created_at
             FROM transcriptions
             ORDER BY created_at DESC, id DESC
             LIMIT ? OFFSET ?
@@ -128,14 +151,14 @@ def get_transcription_by_id(
     record_id: int,
     custom_path: Optional[Path] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Retrieve a single transcription record by ID."""
+    """Retrieve a single transcription record by ID with all regional error metrics."""
     with get_db_connection(custom_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
             SELECT id, filename, detected_language, language_probability,
-                   transcript, reference_transcript, wer, duration_seconds,
-                   inference_time_seconds, created_at
+                   transcript, reference_transcript, wer, cer, aer, acoustic_accuracy,
+                   duration_seconds, inference_time_seconds, created_at
             FROM transcriptions
             WHERE id = ?
             """,

@@ -3,12 +3,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app
+from app.database import init_db
 from app.main import app as fastapi_app
 
 
 @pytest.fixture(scope="session")
 def client() -> TestClient:
     """Session-scoped TestClient fixture."""
+    init_db()
     return TestClient(fastapi_app)
 
 

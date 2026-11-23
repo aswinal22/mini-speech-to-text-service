@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Set
@@ -19,21 +20,20 @@ class Settings(BaseSettings):
     data_dir: Path = base_dir / "data"
     db_path: Path = data_dir / "transcriptions.db"
     samples_dir: Path = base_dir / "samples"
-    models_dir: Path = base_dir / "models" / "base"
+    models_dir: Path = base_dir / "models" / "small"
 
-    # ASR Hardware Optimization Settings (Intel 8-thread CPU, ~1.1GB RAM)
-    # Uses locally cached workspace model directory if present, else model identifier
+    # ASR Hardware Optimization Settings (Whisper small INT8, ~450MB RAM)
     whisper_model_size: str = (
-        str(Path(__file__).resolve().parent.parent / "models" / "base")
-        if (Path(__file__).resolve().parent.parent / "models" / "base").exists()
-        else "base"
+        str(Path(__file__).resolve().parent.parent / "models" / "small")
+        if (Path(__file__).resolve().parent.parent / "models" / "small").exists()
+        else "small"
     )
     whisper_device: str = "cpu"
-    whisper_compute_type: str = "int8"  # 8-bit quantization for minimal memory usage
-    whisper_cpu_threads: int = 4  # Reserve 4 logical cores for system & API responsiveness
+    whisper_compute_type: str = "int8"
+    whisper_cpu_threads: int = min(8, os.cpu_count() or 6)
 
-    # Audio Constraints
-    allowed_extensions: Set[str] = {".wav", ".mp3"}
+    # Audio Constraints (supports standard formats including mobile recordings)
+    allowed_extensions: Set[str] = {".wav", ".mp3", ".m4a", ".ogg"}
     max_upload_size_bytes: int = 25 * 1024 * 1024  # 25 MB
 
 

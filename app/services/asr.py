@@ -31,25 +31,45 @@ class AudioProcessingError(Exception):
 
 def load_audio_waveform(audio_source: Union[str, Path, BinaryIO]) -> np.ndarray:
     """
-    Read an audio file or stream using soundfile and convert it to a 16kHz mono float32 waveform.
-    Bypasses PyAV version quirks and external ffmpeg dependencies.
+    Read an audio file or stream and convert it to a normalized 16kHz mono float32 waveform.
+    Uses soundfile first, with automatic fallback to PyAV for formats like .m4a and .ogg.
+    Applies peak loudness normalization to maximize acoustic feature resolution.
     """
     try:
         source = str(audio_source) if isinstance(audio_source, Path) else audio_source
-        audio_data, sample_rate = sf.read(source, dtype="float32")
+        audio_data = None
+        sample_rate = 16000
 
-        # Convert multi-channel / stereo to mono by averaging channels
-        if audio_data.ndim > 1:
-            audio_data = np.mean(audio_data, axis=1)
+        # Attempt decoding with soundfile
+        try:
+            audio_data, sample_rate = sf.read(source, dtype="float32")
+            if audio_data.ndim > 1:
+                audio_data = np.mean(audio_data, axis=1)
+            if sample_rate != 16000:
+                audio_data = librosa.resample(audio_data, orig_sr=sample_rate, target_sr=16000)
+        except Exception:
+            # Fallback to PyAV for containers like M4A / AAC / OGG
+            import av
 
-        # Resample to 16 kHz if necessary
-        if sample_rate != 16000:
-            audio_data = librosa.resample(audio_data, orig_sr=sample_rate, target_sr=16000)
+            container = av.open(source)
+            resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
+            frames = []
+            for frame in container.decode(audio=0):
+                for r_frame in resampler.resample(frame):
+                    frames.append(r_frame.to_ndarray())
+            if not frames:
+                raise AudioProcessingError("No audio frames decoded from file.")
+            audio_data = np.concatenate(frames, axis=1)[0].astype(np.float32) / 32768.0
 
-        if len(audio_data) == 0:
-            raise AudioProcessingError("Audio waveform is empty.")
+        if audio_data is None or len(audio_data) == 0:
+            raise AudioProcessingError("Decoded audio waveform is empty.")
 
-        return audio_data
+        # Peak loudness normalization (scales speech cleanly to 0.95 peak, recovering quiet audio)
+        peak = float(np.max(np.abs(audio_data)))
+        if peak > 1e-6:
+            audio_data = (audio_data / peak) * 0.95
+
+        return audio_data.astype(np.float32)
     except Exception as e:
         if isinstance(e, AudioProcessingError):
             raise
@@ -99,15 +119,16 @@ class WhisperASRService:
         self,
         audio_source: Union[str, Path, BinaryIO],
         language: Optional[str] = None,
+        prompt: Optional[str] = None,
+        beam_size: int = 1,
     ) -> ASRResult:
         """
         Transcribe an audio file path or stream.
-        - Measures exact inference time in seconds.
-        - Emits language detection confidence.
-        - Concatenates segment text.
-        - Raises AudioProcessingError on corrupt or unreadable audio.
+        - language: Optional ISO language code (e.g., 'en', 'ta', 'hi', 'ml').
+                    When supplied, bypasses the 99-language detection pass for ~30% faster inference.
+        - prompt: Optional initial prompt string to bias vocabulary/spelling and force native script.
+        - beam_size: 1 for fast greedy CPU decoding (default), 5 for exhaustive search.
         """
-        # Load audio data as 16kHz mono numpy array
         waveform = load_audio_waveform(audio_source)
         audio_duration = len(waveform) / 16000.0
 
@@ -117,9 +138,14 @@ class WhisperASRService:
         try:
             segments, info = model.transcribe(
                 waveform,
-                language=language,
-                beam_size=5,
+                language=language if language and language.strip() else None,
+                initial_prompt=prompt if prompt and prompt.strip() else None,
+                beam_size=beam_size,
+                best_of=beam_size if beam_size > 1 else 1,
+                temperature=0.0,
+                condition_on_previous_text=False,
                 vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
             )
 
             # Consume the segments generator to complete transcription

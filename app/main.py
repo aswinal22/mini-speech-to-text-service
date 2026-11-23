@@ -23,7 +23,7 @@ from app.schemas import (
     TranscriptionSummaryResponse,
 )
 from app.services.asr import AudioProcessingError, get_asr_service
-from app.services.evaluator import calculate_wer
+from app.services.evaluator import calculate_regional_error_metrics, calculate_wer
 
 
 @asynccontextmanager
@@ -89,14 +89,19 @@ async def health_check():
     summary="Transcribe audio file (.wav or .mp3) and compute WER if reference provided",
 )
 async def transcribe_audio(
-    file: UploadFile = File(..., description="Audio file (.wav or .mp3)"),
+    file: UploadFile = File(..., description="Audio file (.wav, .mp3, .m4a, or .ogg)"),
     reference: Optional[str] = Form(None, description="Optional ground-truth reference transcript"),
+    language: Optional[str] = Form(None, description="Optional ISO language code (e.g. 'en', 'ta', 'hi', 'ml') to skip 99-lang detection"),
+    prompt: Optional[str] = Form(None, description="Optional initial prompt to force native script and bias vocabulary"),
+    beam_size: int = Form(1, ge=1, le=5, description="Beam search width: 1 for fast greedy decoding (default), 5 for exhaustive search"),
 ) -> TranscriptionDetailResponse:
     """
-    Accepts an audio file (.wav or .mp3) and an optional reference transcript.
+    Accepts an audio file and an optional reference transcript.
     - Validates file extension and non-empty content.
+    - Applies peak loudness normalization to incoming audio.
     - Executes speech recognition on CPU via faster-whisper in a threadpool.
-    - Computes Word Error Rate (WER) if reference is provided.
+    - If language is supplied, skips the 99-language detection pass for ~30% faster inference.
+    - Computes multi-granular error metrics (WER, CER, AER, acoustic_accuracy).
     - Persists results to SQLite.
     - Returns full transcription details.
     """
@@ -141,12 +146,19 @@ async def transcribe_audio(
 
         # Offload CPU-bound inference to worker thread
         asr_service = get_asr_service()
-        asr_result = await asyncio.to_thread(asr_service.transcribe, temp_file)
+        asr_result = await asyncio.to_thread(
+            asr_service.transcribe,
+            temp_file,
+            language=language,
+            prompt=prompt,
+            beam_size=beam_size,
+        )
 
-        # Calculate Word Error Rate (WER) if reference was supplied
-        wer_value = calculate_wer(
+        # Calculate multi-granular error metrics (WER, CER, AER) for regional languages
+        metrics = calculate_regional_error_metrics(
             hypothesis=asr_result.transcript,
             reference=reference,
+            language=asr_result.detected_language,
         )
 
         # Save record to SQLite
@@ -156,7 +168,10 @@ async def transcribe_audio(
             language_probability=asr_result.language_probability,
             transcript=asr_result.transcript,
             reference_transcript=reference.strip() if reference else None,
-            wer=wer_value,
+            wer=metrics["wer"],
+            cer=metrics["cer"],
+            aer=metrics["aer"],
+            acoustic_accuracy=metrics["acoustic_accuracy"],
             duration_seconds=asr_result.duration_seconds,
             inference_time_seconds=asr_result.inference_time_seconds,
         )
