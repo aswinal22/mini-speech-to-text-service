@@ -150,8 +150,18 @@ def test_wer_evaluator_unit_cases() -> None:
     assert normalize_text("  Testing... 1, 2, 3!  ") == "testing 1 2 3"
 
     # Hindi / Devanagari normalization preserving matras and viramas
+    # Automatically handles dandas (। and ॥) via Unicode category 'P*' without hardcoding
     assert normalize_text("नमस्ते, दुनिया।") == "नमस्ते दुनिया"
     assert normalize_text("भारत देश॥") == "भारत देश"
+
+    # Invisible formatting characters (ZWNJ \u200c and ZWJ \u200d in Indic scripts)
+    assert normalize_text("नमस्\u200cते") == "नमस्ते"
+    assert normalize_text("தமி\u200dழ்") == "தமிழ்"
+    assert calculate_wer("नमस्ते", "नमस्\u200cते") == 0.0
+    assert calculate_wer("தமிழ்", "தமி\u200dழ்") == 0.0
+
+    # International punctuation (Arabic comma ،, question mark ؟)
+    assert normalize_text("مرحبا، بالعالم؟") == "مرحبا بالعالم"
 
     # WER exact match
     assert calculate_wer("Hello world", "Hello, World!") == 0.0
