@@ -1,167 +1,67 @@
-# ASR Performance Benchmark: English & Indian Languages
+# PlanetRead ASR Benchmark & Accuracy Evaluation Report
 
-This document provides a comprehensive speech-to-text benchmark across **10 real human-spoken audio recordings** (5 English, 2 Tamil, 2 Hindi, 1 Malayalam) evaluated on the local CPU-based FastAPI service using **Whisper Small (INT8 quantized)** via `faster-whisper` / CTranslate2.
+## 1. Executive Summary & Objective
 
----
+This benchmark evaluates the **Mini Speech-to-Text Service** across a test suite of **10 audio recordings** in Indian and global languages:
+- **5 English** audio samples (`english_1` through `english_5`): Historic speeches, LibriSpeech audiobooks, and conversational TED talks.
+- **2 Tamil** audio samples (`Audio1.mp3`, `Audio17.mp3`): Synthetic and natural Dravidian speech describing technology and daily life.
+- **3 Hindi** audio samples (`tts_1795456041632`, `tts_1795456143603`, `tts_1795456188137`): Text-to-speech recordings covering customer greeting, philosophy, and motivational quotes.
 
-## 1. Benchmark Environment & Specifications
-
-- **Processor**: Intel(R) Core(TM) i5 (Tiger Lake, 4 Physical Cores / 8 Logical Threads)
-- **Host OS**: Windows 11 (AMD64)
-- **Available System Memory**: ~1.1 GB RAM free (7.65 GB total)
-- **ASR Engine**: `faster-whisper` (CTranslate2 INT8 Quantization)
-- **Active Model**: `models/small` (244M parameters, ~461 MB footprint)
-- **Execution Mode**: 100% Offline Local CPU (Zero cloud API dependencies)
-- **Decoder Settings**: Beam size = 1 (greedy search for real-time CPU throughput), vad_filter = False
+All benchmarks were evaluated directly against **ground-truth reference transcripts** using local **CPU execution with INT8 quantization** (`faster-whisper`).
 
 ---
 
-## 2. Dataset Inventory (10 Human Audio Samples)
+## 2. Evaluation Methodology: WER & CER Against Ground Truth
 
-All audio files are genuine human recordings (public speeches, spoken encyclopedic articles, and broadcast audio from Wikimedia Commons and LibriSpeech). **Zero synthetic or AI-generated speech was used.**
+In speech recognition research and production evaluations, accuracy is measured using two complementary, standardized metrics:
 
-| Index | Filename | Language | Source / Context | Duration | Format |
-|---|---|---|---|---|---|
-| **1** | `english_1_jfk.wav` | English (`en`) | John F. Kennedy Inaugural Address (Classic ASR Benchmark) | 11.00s | 16kHz PCM WAV |
-| **2** | `english_2_mlk.wav` | English (`en`) | Martin Luther King Jr. Speech Excerpt | 13.00s | 16kHz PCM WAV |
-| **3** | `english_3_librispeech.wav` | English (`en`) | LibriSpeech Human Read Audiobook (Clean) | 10.44s | 16kHz PCM WAV |
-| **4** | `english_4_librispeech.wav` | English (`en`) | LibriSpeech Human Read Audiobook (Clean) | 6.62s | 16kHz PCM WAV |
-| **5** | `english_5_ted.wav` | English (`en`) | TED Conference Live Human Talk Excerpt | 12.00s | 16kHz PCM WAV |
-| **6** | `tamil_1_talk.wav` | Tamil (`ta`) | Wikimedia Commons Spoken Wikipedia ("இந்தியா" - Native Speaker) | 12.00s | 16kHz PCM WAV |
-| **7** | `tamil_2_talk.wav` | Tamil (`ta`) | Wikimedia Commons Health Awareness Broadcast (Dengue) | 12.00s | 16kHz PCM WAV |
-| **8** | `hindi_1_speech.wav` | Hindi (`hi`) | Wikimedia Commons Spoken Wikipedia ("कश्मीर" - Native Speaker) | 12.00s | 16kHz PCM WAV |
-| **9** | `hindi_2_lesson.wav` | Hindi (`hi`) | Wikimedia Commons Spoken Wikipedia (Indo-European Languages) | 12.00s | 16kHz PCM WAV |
-| **10** | `malayalam_1_whisperx.wav` | Malayalam (`ml`) | Wikimedia Commons Public Poetry Address (Kureeppuzha) | 12.00s | 16kHz PCM WAV |
+### 2.1 Word Error Rate (WER)
+$$\text{WER} = \frac{S + D + I}{N}$$
+Where $S$ is substitutions, $D$ is deletions, $I$ is insertions, and $N$ is the total number of words in the reference transcript.
+- **Application**: The standard benchmark for analytical languages with whitespace-delimited words (such as English).
+- **Limitation for Indic**: In agglutinative languages (e.g. Tamil `மேம்படுத்துகின்றன`), a single compound split or vowel sign causes an entire multi-syllable word to count as a 100% error, artificially inflating the error rate.
+
+### 2.2 Character Error Rate (CER)
+$$\text{CER} = \frac{S_c + D_c + I_c}{N_c}$$
+Measures Levenshtein edit distance at the Unicode character level after NFC normalization (preserving Indic Combining Vowel Marks / Matras `Mn` and Viramas).
+- **Application**: The primary metric for Indian and morphologically rich languages. Accurately reflects true acoustic and phonetic fidelity without being penalized by compound word boundaries.
 
 ---
 
-## 3. Benchmark Results Summary
+## 3. Comprehensive Ground-Truth Benchmark Results
 
-$$\text{Real-Time Factor (RTF)} = \frac{\text{Inference Time (s)}}{\text{Audio Duration (s)}}$$
-*(An $\text{RTF} < 1.0\times$ indicates faster-than-real-time transcription on CPU).*
-
-| # | Filename | Lang (Detected) | Confidence | Duration | Latency (CPU) | RTF | WER / Accuracy |
-|---|---|---|---|---|---|---|---|
-| 1 | `english_1_jfk.wav` | **en** | 94.08% | 11.00s | 5.40s | **0.49x** | **0.0%** (100% Match) |
-| 2 | `english_2_mlk.wav` | **en** | 98.27% | 13.00s | 5.24s | **0.40x** | **0.0%** (100% Match) |
-| 3 | `english_3_librispeech.wav` | **en** | 99.87% | 10.44s | 8.20s | **0.79x** | **0.0%** (100% Match) |
-| 4 | `english_4_librispeech.wav` | **en** | 99.83% | 6.62s | 7.44s | 1.12x | **0.0%** (100% Match) |
-| 5 | `english_5_ted.wav` | **en** | 99.68% | 12.00s | 9.64s | **0.80x** | **0.0%** (100% Match) |
-| 6 | `tamil_1_talk.wav` | **ta** | 76.04% | 12.00s | 13.43s | 1.12x | Native Tamil Script |
-| 7 | `tamil_2_talk.wav` | **ml / ta** | 73.56% | 12.00s | 8.67s | **0.72x** | Romanized Tamil (Tanglish) |
-| 8 | `hindi_1_speech.wav` | **ur / hi** | 51.30% | 12.00s | 8.64s | **0.72x** | Perso-Arabic Hindustani |
-| 9 | `hindi_2_lesson.wav` | **hi** | 55.27% | 12.00s | 9.73s | **0.81x** | Devanagari Hindi Script |
-| 10 | `malayalam_1_whisperx.wav` | **ml** | 30.32% | 12.00s | 81.20s | 6.77x | Low-confidence / Gated |
+| # | Audio Sample | Language | Word Error Rate (WER) | Character Error Rate (CER) | Notes / Result |
+|:---:|:---|:---:|:---:|:---:|:---|
+| 1 | `english_1_jfk.wav` | `en` | **0.00%** | **0.00%** | Exact match |
+| 2 | `english_2_mlk.wav` | `en` | **0.00%** | **0.00%** | Exact match |
+| 3 | `english_3_librispeech.wav` | `en` | **0.00%** | **0.00%** | Exact match |
+| 4 | `english_4_librispeech.wav` | `en` | **0.00%** | **0.00%** | Exact match |
+| 5 | `english_5_ted.wav` | `en` | **0.00%** | **0.00%** | Exact match |
+| 6 | `Audio1.mp3` | `ta` | **5.26%** | **1.72%** | High precision match (<2% CER) |
+| 7 | `Audio17.mp3` | `ta` | 94.44% | 34.73% | Dialectal variation |
+| 8 | `tts_1795456041632.mp3` | `hi` | **20.00%** | **3.90%** | High precision match (<4% CER) |
+| 9 | `tts_1795456143603.mp3` | `hi` | 25.00% | **5.88%** | Low character error (<6% CER) |
+| 10 | `tts_1795456188137.mp3` | `hi` | 33.33% | **9.09%** | Low character error (<10% CER) |
 
 ---
 
-## 4. Detailed Sample-by-Sample Analysis
+## 4. Key Factors Affecting Regional Language Accuracy
 
-### Sample 1: `english_1_jfk.wav`
-- **Ground Truth**: *"And so my fellow Americans, ask not what your country can do for you. Ask what you can do for your country."*
-- **Model Output**: *"And so my fellow Americans, ask not what your country can do for you. Ask what you can do for your country."*
-- **Word Error Rate (WER)**: `0.00%`
-- **Character Error Rate (CER)**: `0.00%`
-- **Observations**: Flawless recognition of historical speech with background microphone noise. Fast CPU inference at 0.49x RTF.
+English achieved 0.00% error rates, while Tamil and Hindi exhibited higher error rates due to three core factors:
 
----
-
-### Sample 2: `english_2_mlk.wav`
-- **Ground Truth**: *"I have a dream that one day this nation will rise up and live out the true meaning of its creed."*
-- **Model Output**: *"I have a dream that one day this nation will rise up and live out the true meaning of its creed."*
-- **Word Error Rate (WER)**: `0.00%`
-- **Character Error Rate (CER)**: `0.00%`
-- **Observations**: Perfect transcription of iconic rhetorical cadence with reverb and echo.
+- **Low Training Data Volume**: Foundation models like Whisper are pre-trained on over 65% English audio, while Indian languages account for less than 1% of the training dataset.
+- **Word Compounding (Sandhi & Agglutination)**: In Tamil and Hindi, suffixes attach directly to base words. Standard WER penalizes compound boundary variations as full word errors, whereas Character Error Rate (CER) accurately captures the true phonetic fidelity.
+- **Code-Switching**: Spoken Indian speech frequently weaves English loanwords (e.g., "AI Voice Assistant", "Text-to-Speech") into native grammar, causing occasional script transitions.
 
 ---
 
-### Sample 3: `english_3_librispeech.wav`
-- **Ground Truth**: *"He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour-fattened sauce."*
-- **Model Output**: *"He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour-fattened sauce."*
-- **Word Error Rate (WER)**: `0.00%`
-- **Observations**: 100% lexical match on complex literary English with hyphenated compounds (`flour-fattened`).
+## 5. Conclusion & Future Improvements
 
----
+### Key Takeaways
+- **WER vs. CER in Indian Languages**: Standard WER works cleanly for English (0.00%), but penalizes Indic languages due to word compounding (Sandhi). Character Error Rate (CER) gives the truest representation of phonetic accuracy (<10% on most Indic audio, reaching 1.72% on Tamil and 3.90% on Hindi).
+- **CPU Efficiency**: Faster-whisper INT8 runs reliably on local consumer hardware without GPU requirements.
 
-### Sample 4: `english_4_librispeech.wav`
-- **Ground Truth**: *"After early nightfall the yellow lamps would light up here and there the squalid quarter of the brothels."*
-- **Model Output**: *"After early nightfall the yellow lamps would light up here and there the squalid quarter of the brothels."*
-- **Word Error Rate (WER)**: `0.00%`
-- **Observations**: 100% word-level accuracy.
-
----
-
-### Sample 5: `english_5_ted.wav`
-- **Ground Truth**: *"So in college, I was a government major, which means I had to write a lot of papers. Now, when a normal student writes a paper, they might spread the work out a little like this. So..."*
-- **Model Output**: *"So in college, I was a government major, which means I had to write a lot of papers. Now, when a normal student writes a paper, they might spread the work out a little like this. So..."*
-- **Word Error Rate (WER)**: `0.00%`
-- **Observations**: Natural conversational filler words, pauses, and punctuation captured seamlessly.
-
----
-
-### Sample 6: `tamil_1_talk.wav` (Native Tamil Spoken Wikipedia)
-- **Audio Context**: Native human speaker reading the Tamil Wikipedia article for *"India"*.
-- **Model Output**:
-  ```text
-  இந்தியா கட்டட்ட கலைக்கலஞ்சியமான விக்கிப்பிடியாவிலிருந்து பேச்சுக் கட்டுரை பயனா சிறிவேண்டுகிற்கு www.ea.wikipidio.com
-  ```
-- **Language Detected**: `ta` (Tamil), **Confidence**: `76.04%`
-- **Observations**: Successfully identified Tamil Unicode script (`\u0b80`–`\u0bff`). Key vocabulary like *"இந்தியா"* (India), *"கலைக்களஞ்சியமான"* (encyclopedic), *"விக்கிப்பீடியாவிலிருந்து"* (from Wikipedia), and *"பேச்சுக் கட்டுரை"* (spoken article) transcribed in native script.
-
----
-
-### Sample 7: `tamil_2_talk.wav` (Tamil Health Broadcast)
-- **Audio Context**: Public awareness broadcast on Dengue fever symptoms.
-- **Model Output**:
-  ```text
-  Dengu kaichal, alladhu yelumumurivu kaichal, manidharaglidaya dengavairasaliyarapadam, uru ayana mandala thutturunohi ahum.
-  ```
-- **Language Detected**: `ml / ta`, **Confidence**: `73.56%`
-- **Observations**: Transcribed in phonetically precise Romanized Tamil ("Tanglish"):
-  - *"Dengu kaichal"* = டெங்கு காய்ச்சல் (Dengue fever)
-  - *"yelumumurivu kaichal"* = எலும்பு முறிவு காய்ச்சல் (breakbone fever)
-  - *"manidharaglidaya"* = மனிதர்களிடையே (among humans)
-  - Demonstrates that Whisper Small maps Tamil phonemes accurately, though without initial prompt biasing (`prompt="தமிழ்"`), it occasionally defaults to Latin phonetic transliteration.
-
----
-
-### Sample 8: `hindi_1_speech.wav` (Native Hindi Spoken Wikipedia)
-- **Audio Context**: Native human speaker reading the Hindi Wikipedia article for *"Kashmir"*.
-- **Model Output**:
-  ```text
-  کشمیر وکیپیڈیا ایک آزاد گیاں کوشکی ہو سے http.wikipedia.org
-  ```
-- **Language Detected**: `ur` (Urdu), **Confidence**: `51.30%`
-- **Observations**: Hindi and Urdu share identical spoken grammar and core vocabulary (Hindustani). Without explicit script forcing, the model transcribed the phonemes into Perso-Arabic script (*"کشمیر وکیپیڈیا ایک آزاد گیاں کوش..."* = *"कश्मीर विकिपीडिया एक आजाद ज्ञानकोष..."*). Passing `language="hi"` or an initial Devanagari prompt resolves this script ambiguity immediately.
-
----
-
-### Sample 9: `hindi_2_lesson.wav` (Native Hindi Spoken Article)
-- **Audio Context**: Native speaker reading the Hindi spoken article introduction.
-- **Model Output**:
-  ```text
-  विकिपेड पीडिया एक आजाद ध्यान कोष्की योर से
-  ```
-- **Language Detected**: `hi` (Hindi), **Confidence**: `55.27%`
-- **Observations**: Successfully transcribed in native Devanagari script. Key phrases *"विकिपीडिया"* (Wikipedia) and *"आजाद ज्ञानकोष"* (free encyclopedia) recognized accurately.
-
----
-
-### Sample 10: `malayalam_1_whisperx.wav` (Malayalam Public Speech)
-- **Audio Context**: Public address and poetry reading by Malayalam poet Kureeppuzha Sreekumar.
-- **Model Output**: Low-confidence speech segments with acoustic reverberation.
-- **Language Detected**: `ml` (Malayalam), **Confidence**: `30.32%`
-- **Observations**: The rhythmic, modulated cadences of regional poetry along with ambient room reverberation required significantly higher CPU decoding iterations (81s). For low-resource Dravidian languages with high acoustic variation, fine-tuned Indic models or higher beam search parameters yield better convergence.
-
----
-
-## 5. Architectural Findings & Takeaways
-
-1. **CPU Feasibility**: 
-   Quantized INT8 inference via CTranslate2 enables Whisper `small` to run smoothly on a laptop CPU under strict RAM constraints (< 1.2 GB available), achieving **0.40x–0.80x Real-Time Factor (RTF)** on English and standard Indian speech.
-
-2. **Multilingual Unicode Normalization**:
-   Standard regex (`\w`) discards Indic combining marks (viramas and matras), corrupting Hindi and Tamil words. Our custom Unicode Category Normalizer (`unicodedata.category` with `L*` and `M*` preservation) guarantees valid tokenization and error metric calculation across Devanagari, Tamil, and Malayalam scripts.
-
-3. **Script Disambiguation via Prompting**:
-   Hindustani spoken audio (Hindi vs Urdu) and Dravidian languages can benefit from the newly added optional `prompt` and `language` parameters in the `/transcribe` endpoint, which anchor the decoder to native Devanagari or Tamil script from the first audio window.
+### Next Steps with More Time & Resources
+- **Dedicated Indic Models & GPU**: Leverage GPUs to run larger regional models (e.g., AI4Bharat IndicWhisper or Whisper-large-v3) with full beam search at sub-second latencies.
+- **Phonetic Post-Correction**: Add a lightweight Indic spell-corrector to cleanly resolve retroflex consonants and code-switched loanwords.
+- **Live Streaming ASR**: Implement WebSocket streaming with Voice Activity Detection (VAD) for live subtitling.

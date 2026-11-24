@@ -1,12 +1,13 @@
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any
 
 from app.config import get_settings
 
 
-def get_db_path(custom_path: Optional[Path] = None) -> Path:
+def get_db_path(custom_path: Path | None = None) -> Path:
     """Resolve database path and ensure parent directories exist."""
     db_path = custom_path or get_settings().db_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -15,7 +16,7 @@ def get_db_path(custom_path: Optional[Path] = None) -> Path:
 
 @contextmanager
 def get_db_connection(
-    custom_path: Optional[Path] = None,
+    custom_path: Path | None = None,
 ) -> Generator[sqlite3.Connection, None, None]:
     """Context manager yielding an SQLite connection configured with row_factory=sqlite3.Row."""
     db_path = get_db_path(custom_path)
@@ -31,7 +32,7 @@ def get_db_connection(
         conn.close()
 
 
-def init_db(custom_path: Optional[Path] = None) -> None:
+def init_db(custom_path: Path | None = None) -> None:
     """Initialize SQLite database tables, regional metric columns, and indexes."""
     with get_db_connection(custom_path) as conn:
         cursor = conn.cursor()
@@ -58,7 +59,11 @@ def init_db(custom_path: Optional[Path] = None) -> None:
         # Migrate existing tables dynamically if columns are absent
         cursor.execute("PRAGMA table_info(transcriptions)")
         existing_cols = {row["name"] for row in cursor.fetchall()}
-        for col, col_type in [("cer", "REAL"), ("aer", "REAL"), ("acoustic_accuracy", "REAL")]:
+        for col, col_type in [
+            ("cer", "REAL"),
+            ("aer", "REAL"),
+            ("acoustic_accuracy", "REAL"),
+        ]:
             if col not in existing_cols:
                 try:
                     cursor.execute(f"ALTER TABLE transcriptions ADD COLUMN {col} {col_type}")
@@ -78,14 +83,14 @@ def save_transcription(
     detected_language: str,
     language_probability: float,
     transcript: str,
-    reference_transcript: Optional[str],
-    wer: Optional[float],
+    reference_transcript: str | None,
+    wer: float | None,
     duration_seconds: float,
     inference_time_seconds: float,
-    cer: Optional[float] = None,
-    aer: Optional[float] = None,
-    acoustic_accuracy: Optional[float] = None,
-    custom_path: Optional[Path] = None,
+    cer: float | None = None,
+    aer: float | None = None,
+    acoustic_accuracy: float | None = None,
+    custom_path: Path | None = None,
 ) -> int:
     """Insert a new transcription record into the database and return the row ID."""
     with get_db_connection(custom_path) as conn:
@@ -129,8 +134,8 @@ def save_transcription(
 def get_all_transcriptions(
     limit: int = 50,
     offset: int = 0,
-    custom_path: Optional[Path] = None,
-) -> List[Dict[str, Any]]:
+    custom_path: Path | None = None,
+) -> list[dict[str, Any]]:
     """Retrieve paginated transcriptions ordered from newest to oldest."""
     with get_db_connection(custom_path) as conn:
         cursor = conn.cursor()
@@ -149,8 +154,8 @@ def get_all_transcriptions(
 
 def get_transcription_by_id(
     record_id: int,
-    custom_path: Optional[Path] = None,
-) -> Optional[Dict[str, Any]]:
+    custom_path: Path | None = None,
+) -> dict[str, Any] | None:
     """Retrieve a single transcription record by ID with all regional error metrics."""
     with get_db_connection(custom_path) as conn:
         cursor = conn.cursor()
@@ -171,8 +176,8 @@ def get_transcription_by_id(
 def search_transcripts(
     query: str,
     limit: int = 20,
-    custom_path: Optional[Path] = None,
-) -> List[Dict[str, Any]]:
+    custom_path: Path | None = None,
+) -> list[dict[str, Any]]:
     """Search transcripts using case-insensitive substring matching and return snippets."""
     clean_query = query.strip()
     if not clean_query:
@@ -191,7 +196,7 @@ def search_transcripts(
             (f"%{clean_query}%", limit),
         )
         rows = cursor.fetchall()
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for row in rows:
             data = dict(row)
             text = data["transcript"]

@@ -2,7 +2,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, Optional, Union
+from typing import BinaryIO
 
 import librosa
 import numpy as np
@@ -26,10 +26,8 @@ class ASRResult:
 class AudioProcessingError(Exception):
     """Raised when audio decoding or model inference encounters an unrecoverable error."""
 
-    pass
 
-
-def load_audio_waveform(audio_source: Union[str, Path, BinaryIO]) -> np.ndarray:
+def load_audio_waveform(audio_source: str | Path | BinaryIO) -> np.ndarray:
     """
     Read an audio file or stream and convert it to a normalized 16kHz mono float32 waveform.
     Uses soundfile first, with automatic fallback to PyAV for formats like .m4a and .ogg.
@@ -47,7 +45,7 @@ def load_audio_waveform(audio_source: Union[str, Path, BinaryIO]) -> np.ndarray:
                 audio_data = np.mean(audio_data, axis=1)
             if sample_rate != 16000:
                 audio_data = librosa.resample(audio_data, orig_sr=sample_rate, target_sr=16000)
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fallback to PyAV for containers like M4A / AAC / OGG
             import av
 
@@ -58,7 +56,7 @@ def load_audio_waveform(audio_source: Union[str, Path, BinaryIO]) -> np.ndarray:
                 for r_frame in resampler.resample(frame):
                     frames.append(r_frame.to_ndarray())
             if not frames:
-                raise AudioProcessingError("No audio frames decoded from file.")
+                raise AudioProcessingError("No audio frames decoded from file.") from None
             audio_data = np.concatenate(frames, axis=1)[0].astype(np.float32) / 32768.0
 
         if audio_data is None or len(audio_data) == 0:
@@ -84,17 +82,17 @@ class WhisperASRService:
 
     def __init__(
         self,
-        model_size: Optional[str] = None,
-        device: Optional[str] = None,
-        compute_type: Optional[str] = None,
-        cpu_threads: Optional[int] = None,
+        model_size: str | None = None,
+        device: str | None = None,
+        compute_type: str | None = None,
+        cpu_threads: int | None = None,
     ) -> None:
         settings = get_settings()
         self.model_size = model_size or settings.whisper_model_size
         self.device = device or settings.whisper_device
         self.compute_type = compute_type or settings.whisper_compute_type
         self.cpu_threads = cpu_threads or settings.whisper_cpu_threads
-        self._model: Optional[WhisperModel] = None
+        self._model: WhisperModel | None = None
         self._lock = threading.Lock()
 
     def get_model(self) -> WhisperModel:
@@ -117,9 +115,9 @@ class WhisperASRService:
 
     def transcribe(
         self,
-        audio_source: Union[str, Path, BinaryIO],
-        language: Optional[str] = None,
-        prompt: Optional[str] = None,
+        audio_source: str | Path | BinaryIO,
+        language: str | None = None,
+        prompt: str | None = None,
         beam_size: int = 1,
     ) -> ASRResult:
         """
@@ -141,11 +139,11 @@ class WhisperASRService:
                 language=language if language and language.strip() else None,
                 initial_prompt=prompt if prompt and prompt.strip() else None,
                 beam_size=beam_size,
-                best_of=beam_size if beam_size > 1 else 1,
+                best_of=max(1, beam_size),
                 temperature=0.0,
                 condition_on_previous_text=False,
                 vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=500),
+                vad_parameters={"min_silence_duration_ms": 500},
             )
 
             # Consume the segments generator to complete transcription
@@ -153,7 +151,11 @@ class WhisperASRService:
             transcript = " ".join(segment_texts).strip()
 
             elapsed_time = time.perf_counter() - start_time
-            duration = float(info.duration) if hasattr(info, "duration") and info.duration else audio_duration
+            duration = (
+                float(info.duration)
+                if hasattr(info, "duration") and info.duration
+                else audio_duration
+            )
 
             return ASRResult(
                 transcript=transcript,
@@ -170,7 +172,7 @@ class WhisperASRService:
             raise AudioProcessingError(f"Audio transcription failed: {e}") from e
 
 
-_asr_instance: Optional[WhisperASRService] = None
+_asr_instance: WhisperASRService | None = None
 _instance_lock = threading.Lock()
 
 

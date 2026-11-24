@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import Dict, List, Optional
+
 import jiwer
 
 
@@ -42,14 +42,14 @@ def normalize_text(text: str) -> str:
     return normalized
 
 
-def tokenize_indic_aksharas(text: str) -> List[str]:
+def tokenize_indic_aksharas(text: str) -> list[str]:
     """
     Tokenizes text into Indic alphasyllabic units (Akshara clusters).
     An Akshara consists of a base consonant/vowel followed by attached vowel matras,
     halants/viramas, or pulli marks (Unicode category 'M*').
     """
     clean_text = normalize_text(text)
-    clusters: List[str] = []
+    clusters: list[str] = []
     for char in clean_text:
         cat = unicodedata.category(char)
         if cat.startswith("M") and clusters:
@@ -60,7 +60,7 @@ def tokenize_indic_aksharas(text: str) -> List[str]:
     return clusters
 
 
-def calculate_wer(hypothesis: str, reference: Optional[str]) -> Optional[float]:
+def calculate_wer(hypothesis: str, reference: str | None) -> float | None:
     """
     Compute Word Error Rate (WER) using standardized Levenshtein distance.
     Returns None if reference is None or whitespace only.
@@ -84,7 +84,7 @@ def calculate_wer(hypothesis: str, reference: Optional[str]) -> Optional[float]:
     return round(float(wer_value), 4)
 
 
-def calculate_cer(hypothesis: str, reference: Optional[str]) -> Optional[float]:
+def calculate_cer(hypothesis: str, reference: str | None) -> float | None:
     """
     Compute Character Error Rate (CER) at Unicode character level.
     Provides fine-grained acoustic accuracy for Indic languages without
@@ -109,7 +109,7 @@ def calculate_cer(hypothesis: str, reference: Optional[str]) -> Optional[float]:
     return round(float(cer_value), 4)
 
 
-def calculate_aer(hypothesis: str, reference: Optional[str]) -> Optional[float]:
+def calculate_aer(hypothesis: str, reference: str | None) -> float | None:
     """
     Compute Akshara Error Rate (AER) across Indic syllabic clusters.
     Evaluates phonetic syllable accuracy (Consonant + Virama + Matra).
@@ -135,9 +135,9 @@ def calculate_aer(hypothesis: str, reference: Optional[str]) -> Optional[float]:
 
 def calculate_regional_error_metrics(
     hypothesis: str,
-    reference: Optional[str],
-    language: Optional[str] = None,
-) -> Dict[str, Optional[float]]:
+    reference: str | None,
+    language: str | None = None,
+) -> dict[str, float | None]:
     """
     Comprehensive multi-granular error evaluation mechanism for regional languages:
     - wer: Word Error Rate (whitespace delimited)

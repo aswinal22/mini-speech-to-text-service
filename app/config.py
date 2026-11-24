@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Set
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,11 +33,11 @@ class Settings(BaseSettings):
     whisper_cpu_threads: int = min(8, os.cpu_count() or 6)
 
     # Audio Constraints (supports standard formats including mobile recordings)
-    allowed_extensions: Set[str] = {".wav", ".mp3", ".m4a", ".ogg"}
+    allowed_extensions: set[str] = {".wav", ".mp3", ".m4a", ".ogg"}
     max_upload_size_bytes: int = 25 * 1024 * 1024  # 25 MB
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Return cached application settings instance."""
     return Settings()

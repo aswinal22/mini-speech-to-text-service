@@ -1,4 +1,5 @@
 """Mini Speech-to-Text Service Package."""
+
 import os
 import sys
 from pathlib import Path
@@ -12,7 +13,7 @@ if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
             for lib_dir in sp_path.glob("*.libs"):
                 try:
                     os.add_dll_directory(str(lib_dir))
-                except Exception:
+                except OSError:
                     pass
 
 __version__ = "1.0.0"

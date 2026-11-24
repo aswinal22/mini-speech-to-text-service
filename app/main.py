@@ -3,9 +3,9 @@ import os
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import List, Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, Path as PathParam, Query, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import Path as PathParam
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
@@ -23,7 +23,7 @@ from app.schemas import (
     TranscriptionSummaryResponse,
 )
 from app.services.asr import AudioProcessingError, get_asr_service
-from app.services.evaluator import calculate_regional_error_metrics, calculate_wer
+from app.services.evaluator import calculate_regional_error_metrics
 
 
 @asynccontextmanager
@@ -82,18 +82,35 @@ async def health_check():
     response_model=TranscriptionDetailResponse,
     status_code=status.HTTP_201_CREATED,
     responses={
-        400: {"model": ErrorResponse, "description": "Invalid audio file or empty payload"},
-        500: {"model": ErrorResponse, "description": "Internal server processing error"},
+        400: {
+            "model": ErrorResponse,
+            "description": "Invalid audio file or empty payload",
+        },
+        500: {
+            "model": ErrorResponse,
+            "description": "Internal server processing error",
+        },
     },
     tags=["ASR"],
     summary="Transcribe audio file (.wav or .mp3) and compute WER if reference provided",
 )
 async def transcribe_audio(
     file: UploadFile = File(..., description="Audio file (.wav, .mp3, .m4a, or .ogg)"),
-    reference: Optional[str] = Form(None, description="Optional ground-truth reference transcript"),
-    language: Optional[str] = Form(None, description="Optional ISO language code (e.g. 'en', 'ta', 'hi', 'ml') to skip 99-lang detection"),
-    prompt: Optional[str] = Form(None, description="Optional initial prompt to force native script and bias vocabulary"),
-    beam_size: int = Form(1, ge=1, le=5, description="Beam search width: 1 for fast greedy decoding (default), 5 for exhaustive search"),
+    reference: str | None = Form(None, description="Optional ground-truth reference transcript"),
+    language: str | None = Form(
+        None,
+        description="Optional ISO language code (e.g. 'en', 'ta', 'hi', 'ml') to skip 99-lang detection",
+    ),
+    prompt: str | None = Form(
+        None,
+        description="Optional initial prompt to force native script and bias vocabulary",
+    ),
+    beam_size: int = Form(
+        1,
+        ge=1,
+        le=5,
+        description="Beam search width: 1 for fast greedy decoding (default), 5 for exhaustive search",
+    ),
 ) -> TranscriptionDetailResponse:
     """
     Accepts an audio file and an optional reference transcript.
@@ -134,7 +151,7 @@ async def transcribe_audio(
     if len(content) > settings.max_upload_size_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File size exceeds maximum permitted limit ({settings.max_upload_size_bytes // (1024*1024)} MB).",
+            detail=f"File size exceeds maximum permitted limit ({settings.max_upload_size_bytes // (1024 * 1024)} MB).",
         )
 
     # Write content to temporary file for Whisper processing
@@ -196,14 +213,14 @@ async def transcribe_audio(
 
 @app.get(
     "/transcripts",
-    response_model=List[TranscriptionSummaryResponse],
+    response_model=list[TranscriptionSummaryResponse],
     tags=["Transcripts"],
     summary="List past transcriptions",
 )
 async def list_transcriptions(
     limit: int = Query(50, ge=1, le=100, description="Maximum number of records to return"),
     offset: int = Query(0, ge=0, description="Offset index for pagination"),
-) -> List[TranscriptionSummaryResponse]:
+) -> list[TranscriptionSummaryResponse]:
     """Retrieve a list of past transcriptions ordered newest first."""
     records = get_all_transcriptions(limit=limit, offset=offset)
     return [TranscriptionSummaryResponse.model_validate(record) for record in records]
@@ -233,14 +250,14 @@ async def get_transcription(
 
 @app.get(
     "/search",
-    response_model=List[SearchResultResponse],
+    response_model=list[SearchResultResponse],
     tags=["Search"],
     summary="Search stored transcripts by query string",
 )
 async def search_stored_transcripts(
     q: str = Query(..., min_length=1, description="Keyword or phrase to search within transcripts"),
     limit: int = Query(20, ge=1, le=50, description="Maximum search results to return"),
-) -> List[SearchResultResponse]:
+) -> list[SearchResultResponse]:
     """Search stored transcripts for matching terms and return excerpt snippets."""
     records = search_transcripts(query=q, limit=limit)
     return [SearchResultResponse.model_validate(record) for record in records]

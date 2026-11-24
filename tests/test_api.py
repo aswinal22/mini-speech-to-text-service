@@ -1,9 +1,9 @@
 from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.services.evaluator import (
-    calculate_aer,
     calculate_cer,
     calculate_regional_error_metrics,
     calculate_wer,

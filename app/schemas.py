@@ -1,4 +1,3 @@
-from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -11,11 +10,13 @@ class TranscriptionSummaryResponse(BaseModel):
     filename: str = Field(..., description="Original name of the audio file")
     detected_language: str = Field(..., description="ISO language code detected by Whisper")
     transcript: str = Field(..., description="Output transcript produced by the ASR model")
-    wer: Optional[float] = Field(
-        None, description="Word Error Rate compared to reference transcript, if provided"
+    wer: float | None = Field(
+        None,
+        description="Word Error Rate compared to reference transcript, if provided",
     )
-    cer: Optional[float] = Field(
-        None, description="Character Error Rate compared to reference transcript, if provided"
+    cer: float | None = Field(
+        None,
+        description="Character Error Rate compared to reference transcript, if provided",
     )
     created_at: str = Field(..., description="Timestamp of transcription creation")
 
@@ -32,19 +33,22 @@ class TranscriptionDetailResponse(BaseModel):
         ..., description="Model confidence score for the detected language"
     )
     transcript: str = Field(..., description="Output transcript produced by the ASR model")
-    reference_transcript: Optional[str] = Field(
+    reference_transcript: str | None = Field(
         None, description="Ground-truth reference transcript if supplied"
     )
-    wer: Optional[float] = Field(
-        None, description="Calculated Word Error Rate (WER) against reference transcript"
+    wer: float | None = Field(
+        None,
+        description="Calculated Word Error Rate (WER) against reference transcript",
     )
-    cer: Optional[float] = Field(
-        None, description="Calculated Character Error Rate (CER) for regional language accuracy"
+    cer: float | None = Field(
+        None,
+        description="Calculated Character Error Rate (CER) for regional language accuracy",
     )
-    aer: Optional[float] = Field(
-        None, description="Calculated Akshara Error Rate (AER) across Indic syllable clusters"
+    aer: float | None = Field(
+        None,
+        description="Calculated Akshara Error Rate (AER) across Indic syllable clusters",
     )
-    acoustic_accuracy: Optional[float] = Field(
+    acoustic_accuracy: float | None = Field(
         None, description="Calibrated acoustic accuracy percentage (1.0 - CER)"
     )
     duration_seconds: float = Field(..., description="Audio duration in seconds")
