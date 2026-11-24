@@ -32,9 +32,9 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     whisper_cpu_threads: int = min(8, os.cpu_count() or 6)
 
-    # Audio Constraints (supports standard formats including mobile recordings)
+    # Audio Constraints (supports standard formats including long-form mobile/speech recordings)
     allowed_extensions: set[str] = {".wav", ".mp3", ".m4a", ".ogg"}
-    max_upload_size_bytes: int = 25 * 1024 * 1024  # 25 MB
+    max_upload_size_bytes: int = 100 * 1024 * 1024  # 100 MB
 
 
 @lru_cache

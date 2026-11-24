@@ -52,6 +52,7 @@ mini-speech-to-text-service/
 │   ├── conftest.py          # Pytest fixtures & TestClient configuration
 │   └── test_api.py          # 12 comprehensive automated tests
 ├── BENCHMARK.md             # Ground-truth benchmark report across 10 audio files
+├── VAJPAYEE_1999_SPEECH_REPORT.md # Real-world 26-min historical speech benchmark & Indic analysis
 ├── requirements.txt         # Production dependencies
 ├── AI_LOG.md                # Comprehensive AI tooling log & decisions
 └── README.md                # Project documentation
@@ -59,6 +60,8 @@ mini-speech-to-text-service/
 
 ### Key Architectural Highlights
 - **Hardware-Optimized CPU Inference**: Uses `faster-whisper` with `int8` quantization and auto-detected CPU threads (`cpu_threads=6`). Download footprint is only ~460 MB and RAM usage is ~450 MB, perfectly tailored for standard developer laptops.
+- **Large File & Long-Duration Audio Support**: Expanded upload capacity to **100 MB** (supporting 30–60+ minute audio streams). The decoding pipeline streams normalized 16kHz mono audio directly into RAM, capping peak memory under ~250 MB even on full 26-minute stereo speeches without memory spikes.
+- **VAD Chunking for Extended Speeches**: Employs Silero Voice Activity Detection (`vad_filter=True`, `min_silence_duration_ms=500`) to dynamically segment long-duration audio, filter out background applause/silence pauses, and prevent decoder looping during crowd intervals.
 - **Robust Audio Decoding**: Custom `soundfile` and `librosa` audio loader decodes `.wav` and `.mp3` directly to 16kHz float32 NumPy arrays, bypassing external `ffmpeg` binary dependencies and PyAV version mismatches on Windows.
 - **Threadpool Offloading**: CPU-bound ASR execution is dispatched via `asyncio.to_thread` to preserve FastAPI event loop responsiveness.
 - **Multilingual Unicode Normalization**: Normalizer strips Western and Indic punctuation (including dandas `।`, `॥`) while strictly preserving Devanagari/Tamil vowel signs/matras and conjuncts.
@@ -188,7 +191,7 @@ Evaluating speech recognition for Indian languages (such as Tamil and Hindi) req
 - **WER**: Standard metric for English, but artificially penalizes Indic languages due to agglutination and Sandhi compounding (where grammatical suffixes attach directly to base words).
 - **CER**: Evaluates Levenshtein edit distance at the Unicode character level after NFC normalization, reflecting true phonetic accuracy without compounding bias.
 
-Full empirical benchmark results across 10 audio recordings (5 English, 2 Tamil, 3 Hindi) are documented in **[BENCHMARK.md](BENCHMARK.md)**.
+Full empirical benchmark results across 10 audio recordings (5 English, 2 Tamil, 3 Hindi) are documented in **[BENCHMARK.md](BENCHMARK.md)**. For real-world long-form evaluation, see the 26-minute historical speech analysis in **[VAJPAYEE_1999_SPEECH_REPORT.md](VAJPAYEE_1999_SPEECH_REPORT.md)**.
 
 ---
 
